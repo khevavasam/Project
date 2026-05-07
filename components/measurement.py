@@ -16,10 +16,10 @@ class MeasurementSession:
         self.max_samples = 128
         self.short_average = 3
         self.long_average = 100
-        self.beat_threshold = 100
-        self.min_finger_range = 250
-        self.max_finger_range = 12000
-        self.min_finger_average = 5000
+        self.beat_threshold = 70
+        self.min_finger_range = 80
+        self.max_finger_range = 20000
+        self.min_finger_average = 1000
         self.debug_interval_ms = 1000
         self.min_measurement_seconds = 30
 
@@ -45,6 +45,10 @@ class MeasurementSession:
         return self.last_saved_result
 
     def get_last_intervals(self):
+        if self.last_intervals:
+            return self.last_intervals
+        if self.last_saved_result and "intervals" in self.last_saved_result:
+            return self.last_saved_result["intervals"]
         return self.last_intervals
 
     def get_rec_seconds(self):
@@ -125,14 +129,24 @@ class MeasurementSession:
             self.history = self.history[-self.max_samples:]
             self.smooth_history = self.smooth_history[-self.max_samples:]
 
-            self.finger_is_present = self.is_finger_detected()
+            signal_ok = self.is_finger_detected()
+            if signal_ok:
+                self.finger_is_present = True
+            elif self.valid_measurement_start is not None:
+                self.finger_is_present = True
+            else:
+                self.finger_is_present = False
+
             self.print_signal_debug()
 
-            if self.finger_is_present:
+            if signal_ok:
                 if self.valid_measurement_start is None:
                     self.valid_measurement_start = time.ticks_ms()
                     self.rec_seconds = 0
                 self.detect_heartbeat()
+            elif self.finger_is_present:
+                self.led.value(0)
+                self.beat_active = False
             else:
                 self.reset_no_finger_state()
 
@@ -141,7 +155,7 @@ class MeasurementSession:
                 self.rec_seconds = time.ticks_diff(now, self.valid_measurement_start) // 1000
 
             if self.finger_is_present and time.ticks_diff(now, self.last_bpm_update) >= 5000:
-                self.bpm, self.beats, self.last_intervals = calculate_bpm(self.beats)
+                self.bpm, _recent_beats, _recent_intervals = calculate_bpm(self.beats)
                 self.last_bpm_update = now
 
             if time.ticks_diff(now, self.last_display_update) >= 50:
@@ -162,7 +176,11 @@ class MeasurementSession:
         if mean_ppi is None:
             return None
 
-        bpm, _beats, intervals = calculate_bpm(self.beats)
+        intervals = self.calculate_all_intervals()
+        if not intervals:
+            return None
+
+        bpm = int(60000 / (sum(intervals) / len(intervals)))
         self.last_intervals = intervals
         return {
             "timestamp_ms": time.ticks_ms(),
@@ -173,6 +191,14 @@ class MeasurementSession:
             "rmssd": int(rmssd),
             "intervals": intervals,
         }
+
+    def calculate_all_intervals(self):
+        intervals = []
+        for i in range(1, len(self.beats)):
+            interval = time.ticks_diff(self.beats[i], self.beats[i - 1])
+            if 250 <= interval <= 3000:
+                intervals.append(interval)
+        return intervals
 
     def stop(self):
         self.led.value(0)

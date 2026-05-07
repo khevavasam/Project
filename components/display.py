@@ -59,6 +59,7 @@ def normalize(value, min_value, max_value, height):
 def display_graph(history, bpm, seconds=None):
     oled.fill(0)
     if len(history) < 2:
+        oled.show()
         return
 
     min_val = min(history) if history else 0

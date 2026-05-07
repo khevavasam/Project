@@ -11,15 +11,20 @@ from components.mqtt_utils import connect_mqtt, send_mqtt_message, parse_json_me
 def get_real_mac():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
-    return ubinascii.hexlify(wlan.config("mac")).decode()
+    return normalize_mac(ubinascii.hexlify(wlan.config("mac")).decode())
+
+
+def normalize_mac(mac):
+    return str(mac).replace(":", "").replace("-", "").replace(" ", "").upper()
 
 
 class KubiosClient:
-    def __init__(self, broker_ip, request_topic, response_topic, real_mac, max_history_files):
+    def __init__(self, broker_ip, broker_port, request_topic, response_topic, real_mac, max_history_files):
         self.broker_ip = broker_ip
+        self.broker_port = broker_port
         self.request_topic = request_topic
         self.response_topic = response_topic
-        self.real_mac = real_mac
+        self.real_mac = normalize_mac(real_mac)
         self.max_history_files = max_history_files
         self.mqtt_client = None
         self.last_result = None
@@ -34,6 +39,7 @@ class KubiosClient:
                 self.response_topic,
                 self.callback,
                 self.real_mac,
+                self.broker_port,
             )
             return "ok"
         except Exception as e:
@@ -46,8 +52,17 @@ class KubiosClient:
 
     def callback(self, topic, msg):
         try:
+            if topic != self.response_topic:
+                print("Ignoring MQTT topic:", topic)
+                return
             data = parse_json_message(msg)
-            if data.get("mac") != self.real_mac:
+            if "mac" not in data:
+                print("Invalid Kubios response: missing mac")
+                return
+            response_mac = data.get("mac")
+            print("Response MAC:", response_mac)
+            print("Pico MAC:", self.real_mac)
+            if normalize_mac(response_mac) != normalize_mac(self.real_mac):
                 print("Ignoring Kubios response for other mac")
                 return
             save_file(self.next_filename("KUBIOS"), data)

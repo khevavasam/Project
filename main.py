@@ -9,14 +9,15 @@ from components.measurement import MeasurementSession
 from components.kubios import KubiosClient, get_real_mac
 from components.ui import show_menu, show_hrv_result, show_history, show_status, get_result_files
 
-SCHOOL_SSID = ""
-SCHOOL_PASSWORD = ""
+SCHOOL_SSID = "E761_ryhma_7"
+SCHOOL_PASSWORD = "Kissakala123"
 PHONE_SSID = "iPhone (Arthur)"
 PHONE_PASSWORD = "11111111"
-BROKER_IP = ""
+BROKER_IP = "192.168.7.253"
+BROKER_PORT = 1883
 
-KUBIOS_REQUEST_TOPIC = "kubios/request"
-KUBIOS_RESPONSE_TOPIC = "kubios/response"
+KUBIOS_REQUEST_TOPIC = b"kubios/request"
+KUBIOS_RESPONSE_TOPIC = b"kubios/response"
 MAX_HISTORY_FILES = 3
 
 MENU_ITEMS = ["1. MEASURE", "2. LAST RESULT", "3. SEND KUBIOS", "4. HISTORY", "5. STATUS"]
@@ -32,12 +33,6 @@ history_detail_open = False
 wifi_ip = None
 real_mac = ""
 kubios = None
-
-
-def get_wifi_credentials():
-    if SCHOOL_SSID and SCHOOL_PASSWORD:
-        return SCHOOL_SSID, SCHOOL_PASSWORD
-    return PHONE_SSID, PHONE_PASSWORD
 
 
 def next_prefixed_filename(prefix):
@@ -71,6 +66,7 @@ def select_current_menu():
 
     if current_menu == "menu":
         if selected_menu == 1:
+            sampler.clear()
             measurement.start()
             current_menu = "measurement"
         elif selected_menu == 2:
@@ -134,10 +130,14 @@ def handle_encoder_events():
 
 print("Start")
 real_mac = get_real_mac()
-ssid, password = get_wifi_credentials()
 
-display_text("WiFi", "Connecting...", center=True)
-wifi_ip = connect_wifi(ssid, password)
+display_text("WiFi", "School...", center=True)
+wifi_ip = connect_wifi(SCHOOL_SSID, SCHOOL_PASSWORD)
+if wifi_ip is None:
+    display_text("School WiFi", "failed", "Trying phone", center=True)
+    time.sleep_ms(800)
+    wifi_ip = connect_wifi(PHONE_SSID, PHONE_PASSWORD)
+
 if wifi_ip is None:
     display_text("WiFi FAILED", "Offline mode", center=True)
 else:
@@ -146,6 +146,7 @@ time.sleep_ms(800)
 
 kubios = KubiosClient(
     BROKER_IP,
+    BROKER_PORT,
     KUBIOS_REQUEST_TOPIC,
     KUBIOS_RESPONSE_TOPIC,
     real_mac,

@@ -11,7 +11,10 @@ class PulseSampler:
 
     def _sample_callback(self, _timer):
         # ISR must stay minimal: read ADC and push to FIFO.
-        self.fifo.put(self._adc.read_u16())
+        try:
+            self.fifo.put(self._adc.read_u16())
+        except RuntimeError:
+            pass
 
     def read(self):
         if self.fifo.has_data():
@@ -20,6 +23,10 @@ class PulseSampler:
 
     def has_data(self):
         return self.fifo.has_data()
+
+    def clear(self):
+        while self.has_data():
+            self.read()
 
     def deinit(self):
         self._timer.deinit()

@@ -27,7 +27,7 @@ def calculate_heart_metrics(beats):
     ppi = [
         time.ticks_diff(beats[i], beats[i - 1])
         for i in range(1, len(beats))
-        if time.ticks_diff(beats[i], beats[i - 1]) <= 3000
+        if 250 <= time.ticks_diff(beats[i], beats[i - 1]) <= 3000
     ]
 
     if not ppi:
@@ -71,15 +71,15 @@ def calculate_bpm(beats):
     """
     current_time = time.ticks_ms()
 
-    # Keep only beats from the last 60 seconds
-    beats = [t for t in beats if time.ticks_diff(current_time, t) <= 60000]
+    # Keep only recent beats for live BPM display.
+    beats = [t for t in beats if time.ticks_diff(current_time, t) <= 90000]
 
     # Recalculate intervals and keep realistic pulse intervals.
     valid_beats = beats[:1]
     intervals = []  # [800, 850, ...]
     for i in range(1, len(beats)):
         interval = time.ticks_diff(beats[i], beats[i - 1])
-        if 300 <= interval <= 2000:
+        if 250 <= interval <= 3000:
             intervals.append(interval)
             valid_beats.append(beats[i])
     bpm = int(60000 / (sum(intervals)/len(intervals))) if len(intervals) > 1 else 0
